@@ -101,6 +101,8 @@ services:
         condition: service_started
     ports:
       - "3000:3000"
+    volumes:
+      - ./configs/grafana/datasources/ds.yaml:/etc/grafana/provisioning/datasources/ds.yaml:ro
     networks:
       - loki
     logging: *default-logging
