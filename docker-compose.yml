@@ -8,6 +8,9 @@ x-logging:
     max-file: "1"
     tag: "{{.Name}}"
 
+networks:
+  loki:
+
 services:
   loki-read:
     image: grafana/loki:2.4.1
@@ -23,8 +26,10 @@ services:
     depends_on:
       loki-minio:
         condition: service_started
-    networks: 
-      - loki
+    networks: &loki-dns
+      loki:
+        aliases:
+          - loki
     logging: *default-logging
 
   loki-write:
@@ -41,8 +46,8 @@ services:
     depends_on:
       loki-minio:
         condition: service_healthy 
-    networks: 
-      - loki
+    networks:
+      <<: *loki-dns
     logging: *default-logging
 
   loki-minio:
@@ -103,10 +108,8 @@ services:
       - "3000:3000"
     volumes:
       - ./configs/grafana/datasources/ds.yaml:/etc/grafana/provisioning/datasources/ds.yaml:ro
+      - ./data/grafana/data:/var/lib/grafana
     networks:
       - loki
     logging: *default-logging
       
-networks:
-  loki:
-    name: loki 
