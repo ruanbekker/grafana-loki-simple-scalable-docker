@@ -62,7 +62,7 @@ services:
       - 9000
     volumes:
       - ./data/minio/data:/data
-      - ./data/minio/scripts/boot.sh:/usr/bin/boot.sh:ro
+      - ./configs/minio/scripts/boot.sh:/usr/bin/boot.sh:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
