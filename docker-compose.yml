@@ -1,0 +1,110 @@
+version: "3.8"
+
+x-logging:
+  &default-logging
+  driver: "json-file"
+  options:
+    max-size: "1m"
+    max-file: "1"
+    tag: "{{.Name}}"
+
+services:
+  loki-read:
+    image: grafana/loki:2.4.1
+    container_name: loki-read
+    restart: unless-stopped
+    command: "-config.file=/etc/loki/config.yaml -target=read"
+    ports:
+      - 3100
+      - 7946
+      - 9095
+    volumes:
+      - ./configs/loki/config.yaml:/etc/loki/config.yaml
+    depends_on:
+      loki-minio:
+        condition: service_started
+    networks: 
+      - loki
+    logging: *default-logging
+
+  loki-write:
+    image: grafana/loki:2.4.1
+    container_name: loki-write
+    restart: unless-stopped
+    command: "-config.file=/etc/loki/config.yaml -target=write"
+    ports:
+      - 3100
+      - 7946
+      - 9095
+    volumes:
+      - ./configs/loki/config.yaml:/etc/loki/config.yaml
+    depends_on:
+      loki-minio:
+        condition: service_healthy 
+    networks: 
+      - loki
+    logging: *default-logging
+
+  loki-minio:
+    image: minio/minio
+    container_name: loki-minio
+    restart: unless-stopped
+    entrypoint:
+      - sh
+      - -euc
+      - sh /usr/bin/boot.sh
+    environment:
+      - MINIO_ACCESS_KEY=minioaccesskey
+      - MINIO_SECRET_KEY=miniosecretkey
+      - MINIO_PROMETHEUS_AUTH_TYPE=public
+      - MINIO_UPDATE=off
+    ports:
+      - 9000
+    volumes:
+      - ./data/minio/data:/data
+      - ./data/minio/scripts/boot.sh:/usr/bin/boot.sh:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - loki
+    logging: *default-logging
+
+  loki-gateway:
+    image: nginx:latest
+    container_name: loki-gateway
+    restart: unless-stopped
+    depends_on:
+      loki-read:
+        condition: service_started
+      loki-write:
+        condition: service_started
+    ports:
+      - "3100:3100"
+    networks:
+      - loki
+    logging: *default-logging
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    environment:
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_USERS_DEFAULT_THEME=light
+      - GF_LOG_LEVEL=critical
+    depends_on:
+      loki-gateway:
+        condition: service_started
+    ports:
+      - "3000:3000"
+    networks:
+      - loki
+    logging: *default-logging
+      
+networks:
+  loki:
+    name: loki 
